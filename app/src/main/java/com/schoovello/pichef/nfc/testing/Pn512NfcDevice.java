@@ -19,6 +19,7 @@ import com.google.android.things.pio.PeripheralManager;
 import com.google.android.things.pio.SpiDevice;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 
 /**
@@ -136,6 +137,48 @@ public class Pn512NfcDevice {
 		return result;
 	}
 
+	public boolean testCrc() throws IOException {
+		softReset();
+
+		byte[] data = "Hello, world!".getBytes(Charset.forName("US-ASCII"));
+
+		clearAndStartCrc();
+		writeFifo(data);
+
+		byte[] crcResult = readCrcReg();
+
+		sendIdleCommand();
+
+		// CRC-16 (KERMIT)
+		byte[] expectedCrcResult = { (byte) 0xD1, (byte) 0x5E };
+
+		return Arrays.equals(crcResult, expectedCrcResult);
+	}
+
+	private void clearAndStartCrc() throws IOException {
+		// set the starting CRC value to 0
+		// read ModeReg
+		byte modeValue = readRegister(RegisterAddress.MODE_REG);
+		// set bits
+		modeValue = BitUtils.clearBits(modeValue, (byte) 0b0000_0011);
+		// write ModeReg
+		writeRegister(RegisterAddress.MODE_REG, modeValue);
+
+		// send start CRC command
+		writeCommand(Command.CALC_CRC);
+	}
+
+	private byte[] readCrcReg() throws IOException {
+		byte[] result = new byte[2];
+		result[0] = readRegister(RegisterAddress.CRC_RESULT_MSB_REG);
+		result[1] = readRegister(RegisterAddress.CRC_RESULT_LSB_REG);
+		return result;
+	}
+
+	private void sendIdleCommand() throws IOException {
+		writeCommand(Command.IDLE);
+	}
+
 	private void writeFifo(byte[] data) throws IOException {
 		writeData(RegisterAddress.FIFO_DATA_REG, data);
 	}
@@ -178,8 +221,13 @@ public class Pn512NfcDevice {
 
 	public interface RegisterAddress {
 		byte COMMAND_REG = (byte) 0x01;
+		byte STATUS_2_REG = (byte) 0x08;
 		byte FIFO_DATA_REG = (byte) 0x09;
 		byte FIFO_LEVEL_REG = (byte) 0x0a;
+		byte CONTROL_REG = (byte) 0x0c;
+		byte MODE_REG = (byte) 0x11;
+		byte CRC_RESULT_MSB_REG = (byte) 0x21;
+		byte CRC_RESULT_LSB_REG = (byte) 0x22;
 		byte AUTO_TEST_REG = (byte) 0x36;
 	}
 
@@ -201,6 +249,7 @@ public class Pn512NfcDevice {
 
 	public interface Values {
 		byte AUTO_TEST_ENABLE_SELF_TEST = (byte) 0x09;
+		byte STATUS_2_MASK_TARGET_ACTIVATED = (byte) 1 << 4;
 	}
 
 	public interface ConstantData {
