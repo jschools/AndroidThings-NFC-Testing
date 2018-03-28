@@ -15,7 +15,6 @@ package com.schoovello.pichef.nfc.testing;
 
 import android.support.annotation.NonNull;
 
-import com.google.android.things.pio.PeripheralManager;
 import com.google.android.things.pio.SpiDevice;
 
 import java.io.IOException;
@@ -90,6 +89,68 @@ public class Pn512NfcDevice {
 		}
 
 		return valid;
+	}
+
+	public boolean tryActivateMiFare() throws IOException {
+		// enable Rx (writing NO_CMD_CHANGE clears RcvOff and PowerDown bits)
+		writeRegister(RegisterAddress.COMMAND_REG, Command.NO_CMD_CHANGE);
+
+		// enable initiator mode
+		byte controlRegValue = readRegister(RegisterAddress.CONTROL_REG);
+		controlRegValue = BitUtils.setBits(controlRegValue, (byte) 0b0001_0000);
+		writeRegister(RegisterAddress.CONTROL_REG, controlRegValue);
+
+		// enable RF
+		writeRegister(RegisterAddress.TX_CONTROL_REG, (byte) 0b1000_0010);
+
+		// Send WUPA
+		//  Clear FIFO
+		flushFifo();
+
+		// WUPA is a 7-bit command, so set the framing params
+		byte bitFramingRegValue = readRegister(RegisterAddress.BIT_FRAMING_REG);
+		bitFramingRegValue = BitUtils.setBits(bitFramingRegValue, (byte) 0b0000_0111);
+		writeRegister(RegisterAddress.BIT_FRAMING_REG, bitFramingRegValue);
+
+		//  Write command sequence to FIFO
+		writeFifo(new byte[] {MiFareDevice.Command.WUPA});
+
+		// clear interrupt flags
+		clearAllInterruptFlags();
+
+		//  Write Transceive command
+		writeCommand(Command.TRANSCEIVE);
+
+		//  Set BitFramingReg register’s StartSend bit to logic 1.
+		bitFramingRegValue = readRegister(RegisterAddress.BIT_FRAMING_REG);
+		bitFramingRegValue = BitUtils.setBits(bitFramingRegValue, (byte) 0b1000_0000);
+		writeRegister(RegisterAddress.BIT_FRAMING_REG, bitFramingRegValue);
+
+		// wait for finished signals
+		byte irqRegValue;
+		do {
+			smallDelayBlocking();
+			irqRegValue = readRegister(RegisterAddress.COMM_IRQ_REG);
+		} while ((irqRegValue & (byte) 0b0011_0000) != (byte) 0b0011_0000);
+
+
+		// cancel transceive command
+		writeCommand(Command.IDLE);
+
+		//  Read FIFO
+		byte[] result = readFifo(2);
+
+		//  Check expected response
+		byte[] expected = { (byte) 0x44, (byte) 0x00 };
+		return Arrays.equals(expected, result);
+	}
+
+	private void clearAllInterruptFlags() throws IOException {
+		writeRegister(RegisterAddress.COMM_IRQ_REG, (byte) 0b0111_1111);
+	}
+
+	private void flushFifo() throws IOException {
+		writeRegister(RegisterAddress.FIFO_LEVEL_REG, (byte) 0b1000_0000);
 	}
 
 	private void writeCommand(byte command) throws IOException {
@@ -196,6 +257,15 @@ public class Pn512NfcDevice {
 		} while (command != Command.IDLE);
 	}
 
+	private void waitForModemIdle() throws IOException {
+		byte modemState;
+		do {
+			smallDelayBlocking();
+			byte status2RegValue = readRegister(RegisterAddress.STATUS_2_REG);
+			modemState = (byte) (status2RegValue & 0b0000_0111);
+		} while (modemState != 0);
+	}
+
 	private static byte[] newData(int length, byte fillValue) {
 		byte[] result = new byte[length];
 		Arrays.fill(result, fillValue);
@@ -221,11 +291,15 @@ public class Pn512NfcDevice {
 
 	public interface RegisterAddress {
 		byte COMMAND_REG = (byte) 0x01;
+		byte COMM_IRQ_REG = (byte) 0x04;
 		byte STATUS_2_REG = (byte) 0x08;
 		byte FIFO_DATA_REG = (byte) 0x09;
 		byte FIFO_LEVEL_REG = (byte) 0x0a;
 		byte CONTROL_REG = (byte) 0x0c;
+		byte BIT_FRAMING_REG = (byte) 0x0d;
 		byte MODE_REG = (byte) 0x11;
+		byte TX_CONTROL_REG = (byte) 0x14;
+		byte TX_AUTO_REG = (byte) 0x15;
 		byte CRC_RESULT_MSB_REG = (byte) 0x21;
 		byte CRC_RESULT_LSB_REG = (byte) 0x22;
 		byte AUTO_TEST_REG = (byte) 0x36;
@@ -249,7 +323,6 @@ public class Pn512NfcDevice {
 
 	public interface Values {
 		byte AUTO_TEST_ENABLE_SELF_TEST = (byte) 0x09;
-		byte STATUS_2_MASK_TARGET_ACTIVATED = (byte) 1 << 4;
 	}
 
 	public interface ConstantData {

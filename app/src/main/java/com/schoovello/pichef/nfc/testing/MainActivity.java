@@ -75,9 +75,11 @@ public class MainActivity extends Activity {
 		@Override
 		public void run() {
 			try {
-//				boolean valid = mNfcDevice.selfTest();
+				mNfcDevice.softReset();
 
-				boolean valid = mNfcDevice.testCrc();
+//				boolean valid = mNfcDevice.selfTest();
+//				boolean valid = mNfcDevice.testCrc();
+				boolean valid = mNfcDevice.tryActivateMiFare();
 
 				String message = valid ? "SUCCESS" : "FAILURE";
 				Log.d("SELF_TEST", "Self Test result: " + message);

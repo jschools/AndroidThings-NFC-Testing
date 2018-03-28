@@ -116,4 +116,48 @@ public class BitUtilsTest {
 		assertEquals(expected, actual);
 	}
 
+	@Test
+	public void testSetBits() {
+		byte value;
+		byte bitsToSet;
+		byte expected;
+		byte actual;
+
+		value = (byte) 0b0000_0000;
+		bitsToSet = (byte) 0b0000_0000;
+		expected = (byte) 0b0000_0000;
+		actual = BitUtils.setBits(value, bitsToSet);
+		assertEquals(expected, actual);
+
+		value = (byte) 0b0000_0000;
+		bitsToSet = (byte) 0b1111_1111;
+		expected = (byte) 0b1111_1111;
+		actual = BitUtils.setBits(value, bitsToSet);
+		assertEquals(expected, actual);
+
+		value = (byte) 0b0000_0000;
+		bitsToSet = (byte) 0b0110_0001;
+		expected = (byte) 0b0110_0001;
+		actual = BitUtils.setBits(value, bitsToSet);
+		assertEquals(expected, actual);
+
+		value = (byte) 0b0110_0110;
+		bitsToSet = (byte) 0b0110_0110;
+		expected = (byte) 0b0110_0110;
+		actual = BitUtils.setBits(value, bitsToSet);
+		assertEquals(expected, actual);
+
+		value = (byte) 0b0111_0111;
+		bitsToSet = (byte) 0b1100_1100;
+		expected = (byte) 0b1111_1111;
+		actual = BitUtils.setBits(value, bitsToSet);
+		assertEquals(expected, actual);
+
+		value = (byte) 0b1010_0101;
+		bitsToSet = (byte) 0b0011_1100;
+		expected = (byte) 0b1011_1101;
+		actual = BitUtils.setBits(value, bitsToSet);
+		assertEquals(expected, actual);
+	}
+
 }

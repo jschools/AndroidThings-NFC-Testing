@@ -6,4 +6,8 @@ public class BitUtils {
 		return (byte) (value & ~(bitsToClear));
 	}
 
+	public static byte setBits(byte value, byte bitsToSet) {
+		return (byte) (value | bitsToSet);
+	}
+
 }
